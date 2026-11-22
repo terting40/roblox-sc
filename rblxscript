@@ -1,0 +1,819 @@
+-- Roblox Mobile Cheat | Delta Executor | Lua 5.1
+-- UI: Sidebar + Panel | Build: v5
+-- Fly: IY-style (joystick native + jump naik + cam arah turun)
+
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService     = game:GetService("TweenService")
+
+local lp  = Players.LocalPlayer
+local cam = workspace.CurrentCamera
+
+-- ============================================================
+-- CHAR REF
+-- ============================================================
+local char, hum, hrp
+local function refreshChar()
+    char = lp.Character or lp.CharacterAdded:Wait()
+    hum  = char:WaitForChild("Humanoid")
+    hrp  = char:WaitForChild("HumanoidRootPart")
+end
+refreshChar()
+lp.CharacterAdded:Connect(function()
+    task.wait(0.3)
+    refreshChar()
+end)
+
+-- ============================================================
+-- STATE
+-- ============================================================
+local S = {
+    fly      = false,
+    noclip   = false,
+    speed    = false,
+    infjump  = false,
+    fly_spd  = 80,
+    walk_spd = 32,
+    wp       = nil,
+}
+
+-- ============================================================
+-- NOTIFY
+-- ============================================================
+local function notify(msg, col)
+    col = col or Color3.fromRGB(100, 210, 120)
+    local sg = Instance.new("ScreenGui")
+    sg.ResetOnSpawn = false
+    sg.IgnoreGuiInset = true
+    pcall(function() sg.Parent = game:GetService("CoreGui") end)
+    if not sg.Parent then sg.Parent = lp.PlayerGui end
+
+    local f = Instance.new("Frame", sg)
+    f.Size = UDim2.new(0, 260, 0, 36)
+    f.Position = UDim2.new(0.5, -130, 0, 8)
+    f.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+    f.BorderSizePixel = 0
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 8)
+    local sk = Instance.new("UIStroke", f)
+    sk.Color = col; sk.Thickness = 1
+
+    local l = Instance.new("TextLabel", f)
+    l.Size = UDim2.new(1, -12, 1, 0)
+    l.Position = UDim2.new(0, 12, 0, 0)
+    l.BackgroundTransparency = 1
+    l.Text = msg
+    l.TextColor3 = col
+    l.Font = Enum.Font.GothamBold
+    l.TextSize = 12
+    l.TextXAlignment = Enum.TextXAlignment.Left
+
+    task.delay(2, function()
+        TweenService:Create(f,  TweenInfo.new(0.3), {BackgroundTransparency=1}):Play()
+        TweenService:Create(l,  TweenInfo.new(0.3), {TextTransparency=1}):Play()
+        task.wait(0.3); sg:Destroy()
+    end)
+end
+
+-- ============================================================
+-- GUI ROOT
+-- ============================================================
+local gui = Instance.new("ScreenGui")
+gui.Name = "JMenu"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+pcall(function() gui.Parent = game:GetService("CoreGui") end)
+if not gui.Parent then gui.Parent = lp.PlayerGui end
+
+-- ============================================================
+-- WINDOW
+-- ============================================================
+local W, H = 460, 340
+local win = Instance.new("Frame", gui)
+win.Name = "Win"
+win.Size = UDim2.new(0, W, 0, H)
+win.Position = UDim2.new(0.5, -W/2, 0.5, -H/2)
+win.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+win.BorderSizePixel = 0
+win.ClipsDescendants = true
+Instance.new("UICorner", win).CornerRadius = UDim.new(0, 14)
+Instance.new("UIStroke", win).Color = Color3.fromRGB(45, 45, 52)
+
+-- title bar
+local tbar = Instance.new("Frame", win)
+tbar.Size = UDim2.new(1, 0, 0, 36)
+tbar.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
+tbar.BorderSizePixel = 0
+
+local ico = Instance.new("TextLabel", tbar)
+ico.Size = UDim2.new(0, 24, 0, 24)
+ico.Position = UDim2.new(0, 10, 0.5, -12)
+ico.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+ico.BorderSizePixel = 0
+ico.Text = "⚡"
+ico.TextSize = 13
+ico.Font = Enum.Font.GothamBold
+ico.TextColor3 = Color3.fromRGB(220, 220, 220)
+Instance.new("UICorner", ico).CornerRadius = UDim.new(0, 6)
+
+local tname = Instance.new("TextLabel", tbar)
+tname.Size = UDim2.new(0, 120, 0, 20)
+tname.Position = UDim2.new(0, 38, 0, 5)
+tname.BackgroundTransparency = 1
+tname.Text = "JACCKS"
+tname.TextColor3 = Color3.fromRGB(230, 230, 235)
+tname.Font = Enum.Font.GothamBold
+tname.TextSize = 13
+tname.TextXAlignment = Enum.TextXAlignment.Left
+
+local tsub = Instance.new("TextLabel", tbar)
+tsub.Size = UDim2.new(0, 120, 0, 12)
+tsub.Position = UDim2.new(0, 38, 0, 22)
+tsub.BackgroundTransparency = 1
+tsub.Text = "by jaccksallas"
+tsub.TextColor3 = Color3.fromRGB(90, 90, 100)
+tsub.Font = Enum.Font.Gotham
+tsub.TextSize = 10
+tsub.TextXAlignment = Enum.TextXAlignment.Left
+
+-- window buttons
+local function winBtn(sym, offX, bgcol, cb)
+    local b = Instance.new("TextButton", tbar)
+    b.Size = UDim2.new(0, 24, 0, 24)
+    b.Position = UDim2.new(1, offX, 0.5, -12)
+    b.BackgroundColor3 = bgcol
+    b.BorderSizePixel = 0
+    b.Text = sym
+    b.TextColor3 = Color3.fromRGB(180, 180, 185)
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 12
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+    b.MouseButton1Click:Connect(cb)
+end
+
+local minimized = false
+winBtn("−", -82, Color3.fromRGB(40,40,48), function()
+    minimized = not minimized
+    TweenService:Create(win, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {
+        Size = minimized and UDim2.new(0,W,0,36) or UDim2.new(0,W,0,H)
+    }):Play()
+end)
+winBtn("×", -22, Color3.fromRGB(50,32,32), function()
+    gui:Destroy()
+end)
+
+-- ============================================================
+-- DRAG
+-- ============================================================
+local drag, dS, wS = false, nil, nil
+tbar.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.Touch then
+        drag = true
+        dS = Vector2.new(i.Position.X, i.Position.Y)
+        wS = Vector2.new(win.Position.X.Offset, win.Position.Y.Offset)
+    end
+end)
+tbar.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.Touch then drag = false end
+end)
+UserInputService.InputChanged:Connect(function(i)
+    if drag and i.UserInputType == Enum.UserInputType.Touch then
+        local vp = cam.ViewportSize
+        win.Position = UDim2.new(0,
+            math.clamp(wS.X + (i.Position.X - dS.X), 0, vp.X - W),
+            0,
+            math.clamp(wS.Y + (i.Position.Y - dS.Y), 0, vp.Y - H)
+        )
+    end
+end)
+
+-- ============================================================
+-- SIDEBAR
+-- ============================================================
+local sidebar = Instance.new("Frame", win)
+sidebar.Size = UDim2.new(0, 110, 1, -36)
+sidebar.Position = UDim2.new(0, 0, 0, 36)
+sidebar.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
+sidebar.BorderSizePixel = 0
+
+local sLayout = Instance.new("UIListLayout", sidebar)
+sLayout.SortOrder = Enum.SortOrder.LayoutOrder
+sLayout.Padding = UDim.new(0, 2)
+local sPad = Instance.new("UIPadding", sidebar)
+sPad.PaddingTop = UDim.new(0, 8)
+sPad.PaddingLeft = UDim.new(0, 6)
+sPad.PaddingRight = UDim.new(0, 6)
+
+local div = Instance.new("Frame", win)
+div.Size = UDim2.new(0, 1, 1, -36)
+div.Position = UDim2.new(0, 110, 0, 36)
+div.BackgroundColor3 = Color3.fromRGB(42, 42, 50)
+div.BorderSizePixel = 0
+
+-- ============================================================
+-- PANEL
+-- ============================================================
+local panel = Instance.new("Frame", win)
+panel.Size = UDim2.new(1, -112, 1, -36)
+panel.Position = UDim2.new(0, 112, 0, 36)
+panel.BackgroundTransparency = 1
+panel.ClipsDescendants = true
+
+-- ============================================================
+-- TAB SYSTEM
+-- ============================================================
+local tabs   = {}
+local active = nil
+
+local function makeTab(label, icon, order)
+    local btn = Instance.new("TextButton", sidebar)
+    btn.Name = label
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.BackgroundColor3 = Color3.fromRGB(36, 36, 42)
+    btn.BorderSizePixel = 0
+    btn.LayoutOrder = order
+    btn.Text = ""
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+    local icoL = Instance.new("TextLabel", btn)
+    icoL.Size = UDim2.new(0, 22, 1, 0)
+    icoL.Position = UDim2.new(0, 8, 0, 0)
+    icoL.BackgroundTransparency = 1
+    icoL.Text = icon
+    icoL.TextColor3 = Color3.fromRGB(140, 140, 155)
+    icoL.Font = Enum.Font.GothamBold
+    icoL.TextSize = 14
+
+    local nameL = Instance.new("TextLabel", btn)
+    nameL.Size = UDim2.new(1, -34, 1, 0)
+    nameL.Position = UDim2.new(0, 32, 0, 0)
+    nameL.BackgroundTransparency = 1
+    nameL.Text = label
+    nameL.TextColor3 = Color3.fromRGB(140, 140, 155)
+    nameL.Font = Enum.Font.GothamBold
+    nameL.TextSize = 11
+    nameL.TextXAlignment = Enum.TextXAlignment.Left
+
+    local ind = Instance.new("Frame", btn)
+    ind.Size = UDim2.new(0, 3, 0.6, 0)
+    ind.Position = UDim2.new(0, 0, 0.2, 0)
+    ind.BackgroundColor3 = Color3.fromRGB(100, 210, 120)
+    ind.BorderSizePixel = 0
+    ind.BackgroundTransparency = 1
+    Instance.new("UICorner", ind).CornerRadius = UDim.new(1, 0)
+
+    local page = Instance.new("ScrollingFrame", panel)
+    page.Name = label.."Page"
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 95)
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.Visible = false
+
+    local pLayout = Instance.new("UIListLayout", page)
+    pLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    pLayout.Padding = UDim.new(0, 10)
+    local pPad = Instance.new("UIPadding", page)
+    pPad.PaddingTop = UDim.new(0, 14)
+    pPad.PaddingLeft = UDim.new(0, 14)
+    pPad.PaddingRight = UDim.new(0, 14)
+    pPad.PaddingBottom = UDim.new(0, 14)
+
+    tabs[label] = {btn=btn, page=page, ind=ind, icoL=icoL, nameL=nameL}
+
+    local function activate()
+        if active then
+            local a = tabs[active]
+            TweenService:Create(a.btn, TweenInfo.new(0.2), {
+                BackgroundColor3 = Color3.fromRGB(36,36,42)
+            }):Play()
+            TweenService:Create(a.ind, TweenInfo.new(0.2), {BackgroundTransparency=1}):Play()
+            a.nameL.TextColor3 = Color3.fromRGB(140,140,155)
+            a.icoL.TextColor3  = Color3.fromRGB(140,140,155)
+            a.page.Visible = false
+        end
+        active = label
+        TweenService:Create(btn, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(40,42,40)
+        }):Play()
+        TweenService:Create(ind, TweenInfo.new(0.2), {BackgroundTransparency=0}):Play()
+        nameL.TextColor3 = Color3.fromRGB(100, 210, 120)
+        icoL.TextColor3  = Color3.fromRGB(100, 210, 120)
+        page.Visible = true
+    end
+
+    btn.MouseButton1Click:Connect(activate)
+    return page, activate
+end
+
+-- ============================================================
+-- UI COMPONENTS
+-- ============================================================
+local function secHeader(parent, text, order)
+    local f = Instance.new("Frame", parent)
+    f.Size = UDim2.new(1, 0, 0, 28)
+    f.BackgroundTransparency = 1
+    f.LayoutOrder = order
+    local l = Instance.new("TextLabel", f)
+    l.Size = UDim2.new(1, 0, 1, 0)
+    l.BackgroundTransparency = 1
+    l.Text = text
+    l.TextColor3 = Color3.fromRGB(220, 220, 230)
+    l.Font = Enum.Font.GothamBold
+    l.TextSize = 14
+    l.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+local function makeToggleRow(parent, label, order, onChange)
+    local row = Instance.new("Frame", parent)
+    row.Size = UDim2.new(1, 0, 0, 46)
+    row.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+    row.BorderSizePixel = 0
+    row.LayoutOrder = order
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 10)
+
+    local lbl = Instance.new("TextLabel", row)
+    lbl.Size = UDim2.new(1, -80, 1, 0)
+    lbl.Position = UDim2.new(0, 14, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label
+    lbl.TextColor3 = Color3.fromRGB(210, 210, 220)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 13
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local pill = Instance.new("Frame", row)
+    pill.Size = UDim2.new(0, 48, 0, 26)
+    pill.Position = UDim2.new(1, -62, 0.5, -13)
+    pill.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    pill.BorderSizePixel = 0
+    Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
+
+    local dot = Instance.new("Frame", pill)
+    dot.Size = UDim2.new(0, 20, 0, 20)
+    dot.Position = UDim2.new(0, 3, 0.5, -10)
+    dot.BackgroundColor3 = Color3.fromRGB(140, 140, 155)
+    dot.BorderSizePixel = 0
+    Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+
+    local on = false
+    local btn = Instance.new("TextButton", row)
+    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+
+    btn.MouseButton1Click:Connect(function()
+        on = not on
+        onChange(on)
+        TweenService:Create(pill, TweenInfo.new(0.2), {
+            BackgroundColor3 = on
+                and Color3.fromRGB(80, 195, 100)
+                 or Color3.fromRGB(50, 50, 60)
+        }):Play()
+        TweenService:Create(dot, TweenInfo.new(0.2), {
+            Position = on
+                and UDim2.new(0, 25, 0.5, -10)
+                 or UDim2.new(0, 3,  0.5, -10),
+            BackgroundColor3 = on
+                and Color3.fromRGB(240, 240, 245)
+                 or Color3.fromRGB(140, 140, 155)
+        }):Play()
+    end)
+end
+
+local function makeSliderRow(parent, label, minV, maxV, defV, order, onChange)
+    local row = Instance.new("Frame", parent)
+    row.Size = UDim2.new(1, 0, 0, 72)
+    row.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+    row.BorderSizePixel = 0
+    row.LayoutOrder = order
+    row.ClipsDescendants = false
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 10)
+
+    local lbl = Instance.new("TextLabel", row)
+    lbl.Size = UDim2.new(1, -60, 0, 18)
+    lbl.Position = UDim2.new(0, 14, 0, 10)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label
+    lbl.TextColor3 = Color3.fromRGB(210, 210, 220)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 13
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local valLbl = Instance.new("TextLabel", row)
+    valLbl.Size = UDim2.new(0, 50, 0, 18)
+    valLbl.Position = UDim2.new(1, -62, 0, 10)
+    valLbl.BackgroundTransparency = 1
+    valLbl.Text = tostring(defV)
+    valLbl.TextColor3 = Color3.fromRGB(100, 210, 120)
+    valLbl.Font = Enum.Font.GothamBold
+    valLbl.TextSize = 13
+    valLbl.TextXAlignment = Enum.TextXAlignment.Right
+
+    local track = Instance.new("Frame", row)
+    track.Size = UDim2.new(1, -28, 0, 6)
+    track.Position = UDim2.new(0, 14, 0, 44)
+    track.BackgroundColor3 = Color3.fromRGB(50, 50, 62)
+    track.BorderSizePixel = 0
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+    local fill = Instance.new("Frame", track)
+    local initRel = (defV - minV) / (maxV - minV)
+    fill.Size = UDim2.new(initRel, 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(80, 145, 235)
+    fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    local handle = Instance.new("Frame", track)
+    handle.Size = UDim2.new(0, 22, 0, 22)
+    handle.Position = UDim2.new(initRel, -11, 0.5, -11)
+    handle.BackgroundColor3 = Color3.fromRGB(220, 220, 228)
+    handle.BorderSizePixel = 0
+    Instance.new("UICorner", handle).CornerRadius = UDim.new(1, 0)
+
+    -- touch area gede
+    local touchArea = Instance.new("TextButton", row)
+    touchArea.Size = UDim2.new(1, -28, 0, 48)
+    touchArea.Position = UDim2.new(0, 14, 0, 24)
+    touchArea.BackgroundTransparency = 1
+    touchArea.Text = ""
+
+    local sliding = false
+    local function update(posX)
+        local rel = math.clamp(
+            (posX - track.AbsolutePosition.X) / track.AbsoluteSize.X,
+            0, 1
+        )
+        local val = math.floor(minV + (maxV - minV) * rel)
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        handle.Position = UDim2.new(rel, -11, 0.5, -11)
+        valLbl.Text = tostring(val)
+        onChange(val)
+    end
+
+    touchArea.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.Touch then
+            sliding = true; update(i.Position.X)
+        end
+    end)
+    touchArea.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.Touch then sliding = false end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if sliding and i.UserInputType == Enum.UserInputType.Touch then
+            update(i.Position.X)
+        end
+    end)
+end
+
+local function makeButtonRow(parent, labelA, labelB, order, cbA, cbB)
+    local row = Instance.new("Frame", parent)
+    row.Size = UDim2.new(1, 0, 0, 42)
+    row.BackgroundTransparency = 1
+    row.BorderSizePixel = 0
+    row.LayoutOrder = order
+
+    local function mkBtn(txt, posX, w, cb)
+        local b = Instance.new("TextButton", row)
+        b.Size = UDim2.new(0, w, 1, 0)
+        b.Position = UDim2.new(0, posX, 0, 0)
+        b.BackgroundColor3 = Color3.fromRGB(38, 38, 46)
+        b.BorderSizePixel = 0
+        b.Text = txt
+        b.TextColor3 = Color3.fromRGB(200, 200, 210)
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = 12
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 10)
+        b.MouseButton1Click:Connect(cb)
+    end
+
+    local w = labelB and 148 or 308
+    mkBtn(labelA, 0, w, cbA)
+    if labelB then mkBtn(labelB, w+8, 148, cbB) end
+end
+
+-- ============================================================
+-- TAB: MAIN
+-- ============================================================
+local movPage, activateMov = makeTab("Main", "🏠", 1)
+local _,       activateSet = makeTab("Settings", "⚙", 2)
+
+secHeader(movPage, "Movement", 1)
+
+makeToggleRow(movPage, "🛸  Fly", 2, function(v)
+    S.fly = v
+    if not v then
+        if hrp then
+            local bv = hrp:FindFirstChild("_FlyBV")
+            local bg = hrp:FindFirstChild("_FlyBG")
+            if bv then bv:Destroy() end
+            if bg then bg:Destroy() end
+        end
+        if hum then hum.PlatformStand = false end
+    end
+    notify(v and "🛸 Fly ON — pake joystick + jump" or "🛸 Fly OFF")
+end)
+
+makeToggleRow(movPage, "👻  Noclip", 3, function(v)
+    S.noclip = v
+    notify(v and "👻 Noclip ON" or "👻 Noclip OFF")
+end)
+
+makeToggleRow(movPage, "⚡  Speed Boost", 4, function(v)
+    S.speed = v
+    if hum then hum.WalkSpeed = v and S.walk_spd or 16 end
+    notify(v and "⚡ Speed ON" or "⚡ Speed OFF")
+end)
+
+makeToggleRow(movPage, "🌀  Infinite Jump", 5, function(v)
+    S.infjump = v
+    notify(v and "🌀 InfJump ON" or "🌀 InfJump OFF")
+end)
+
+makeSliderRow(movPage, "Fly Speed", 10, 250, 80, 6, function(v)
+    S.fly_spd = v
+end)
+
+makeSliderRow(movPage, "Walk Speed", 16, 300, 32, 7, function(v)
+    S.walk_spd = v
+    if S.speed and hum then hum.WalkSpeed = v end
+end)
+
+makeButtonRow(movPage, "📍 Set Waypoint", "🏃 TP Waypoint", 8,
+    function()
+        if hrp then
+            S.wp = hrp.CFrame
+            notify("📍 Waypoint disimpan!")
+        end
+    end,
+    function()
+        if S.wp and hrp then
+            hrp.CFrame = S.wp
+            notify("🏃 TP ke waypoint!")
+        else
+            notify("❌ Set waypoint dulu!", Color3.fromRGB(220,80,80))
+        end
+    end
+)
+
+-- ============================================================
+-- TAB: SETTINGS (TP Player)
+-- ============================================================
+local setPage = tabs["Settings"].page
+secHeader(setPage, "TP to Player", 1)
+
+local plFrame = Instance.new("Frame", setPage)
+plFrame.Size = UDim2.new(1, 0, 0, 160)
+plFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+plFrame.BorderSizePixel = 0
+plFrame.LayoutOrder = 2
+plFrame.ClipsDescendants = true
+Instance.new("UICorner", plFrame).CornerRadius = UDim.new(0, 10)
+
+local plScroll = Instance.new("ScrollingFrame", plFrame)
+plScroll.Size = UDim2.new(1, 0, 1, 0)
+plScroll.BackgroundTransparency = 1
+plScroll.BorderSizePixel = 0
+plScroll.ScrollBarThickness = 3
+plScroll.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 95)
+plScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+plScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+local plL = Instance.new("UIListLayout", plScroll)
+plL.SortOrder = Enum.SortOrder.LayoutOrder
+plL.Padding = UDim.new(0, 2)
+local plPad = Instance.new("UIPadding", plScroll)
+plPad.PaddingTop = UDim.new(0, 6)
+plPad.PaddingLeft = UDim.new(0, 6)
+plPad.PaddingRight = UDim.new(0, 6)
+plPad.PaddingBottom = UDim.new(0, 6)
+
+local selectedPlayer = nil
+
+local function buildList()
+    for _, c in ipairs(plScroll:GetChildren()) do
+        if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end
+    end
+    selectedPlayer = nil
+    local all = Players:GetPlayers()
+    local found = false
+    for i, p in ipairs(all) do
+        if p == lp then continue end
+        found = true
+        local row = Instance.new("TextButton", plScroll)
+        row.Size = UDim2.new(1, 0, 0, 32)
+        row.BackgroundColor3 = Color3.fromRGB(36, 36, 44)
+        row.BorderSizePixel = 0
+        row.Text = ""
+        row.LayoutOrder = i
+        Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+        local av = Instance.new("Frame", row)
+        av.Size = UDim2.new(0, 24, 0, 24)
+        av.Position = UDim2.new(0, 6, 0.5, -12)
+        av.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+        av.BorderSizePixel = 0
+        Instance.new("UICorner", av).CornerRadius = UDim.new(1, 0)
+        local avL = Instance.new("TextLabel", av)
+        avL.Size = UDim2.new(1, 0, 1, 0)
+        avL.BackgroundTransparency = 1
+        avL.Text = string.sub(p.Name, 1, 1):upper()
+        avL.TextColor3 = Color3.fromRGB(100, 210, 120)
+        avL.Font = Enum.Font.GothamBold
+        avL.TextSize = 12
+
+        local nL = Instance.new("TextLabel", row)
+        nL.Size = UDim2.new(1, -40, 1, 0)
+        nL.Position = UDim2.new(0, 36, 0, 0)
+        nL.BackgroundTransparency = 1
+        nL.Text = p.Name
+        nL.TextColor3 = Color3.fromRGB(195, 195, 210)
+        nL.Font = Enum.Font.Gotham
+        nL.TextSize = 12
+        nL.TextXAlignment = Enum.TextXAlignment.Left
+        nL.TextTruncate = Enum.TextTruncate.AtEnd
+
+        row.MouseButton1Click:Connect(function()
+            for _, r in ipairs(plScroll:GetChildren()) do
+                if r:IsA("TextButton") then
+                    TweenService:Create(r, TweenInfo.new(0.15), {
+                        BackgroundColor3 = Color3.fromRGB(36,36,44)
+                    }):Play()
+                end
+            end
+            selectedPlayer = p
+            TweenService:Create(row, TweenInfo.new(0.15), {
+                BackgroundColor3 = Color3.fromRGB(40,60,44)
+            }):Play()
+        end)
+    end
+    if not found then
+        local e = Instance.new("TextLabel", plScroll)
+        e.Size = UDim2.new(1, 0, 0, 32)
+        e.BackgroundTransparency = 1
+        e.Text = "Tidak ada player lain"
+        e.TextColor3 = Color3.fromRGB(90, 90, 105)
+        e.Font = Enum.Font.Gotham
+        e.TextSize = 11
+    end
+end
+
+buildList()
+Players.PlayerAdded:Connect(buildList)
+Players.PlayerRemoving:Connect(buildList)
+
+makeButtonRow(setPage, "↺ Refresh", "⚡ Teleport", 3,
+    function()
+        buildList()
+        notify("↺ List refreshed")
+    end,
+    function()
+        if not selectedPlayer then
+            notify("❌ Pilih player dulu!", Color3.fromRGB(220,80,80)); return
+        end
+        local tc = selectedPlayer.Character
+        local th = tc and tc:FindFirstChild("HumanoidRootPart")
+        if not th then
+            notify("❌ Target tidak valid", Color3.fromRGB(220,80,80)); return
+        end
+        hrp.CFrame = th.CFrame * CFrame.new(0, 0, -3.5)
+        notify("🎯 TP ke " .. selectedPlayer.Name .. "!", Color3.fromRGB(100,210,120))
+    end
+)
+
+activateMov()
+
+-- ============================================================
+-- FLY SYSTEM — IY STYLE
+-- joystick native (MoveDirection) + jump naik + cam arah turun
+-- ============================================================
+local flyBV, flyBG
+local jumping = false
+
+-- deteksi jump button native
+local jumpConn
+local function hookJumpDetect()
+    if jumpConn then jumpConn:Disconnect() end
+    jumpConn = UserInputService.JumpRequest:Connect(function()
+        if S.fly then
+            jumping = true
+            -- naik selama 0.2 detik per tap, bisa di-hold
+            task.delay(0.15, function() jumping = false end)
+        end
+    end)
+end
+hookJumpDetect()
+lp.CharacterAdded:Connect(function()
+    task.wait(0.3); refreshChar(); hookJumpDetect()
+end)
+
+RunService.Heartbeat:Connect(function()
+    if not S.fly then
+        if flyBV and flyBV.Parent then flyBV:Destroy(); flyBV = nil end
+        if flyBG and flyBG.Parent then flyBG:Destroy(); flyBG = nil end
+        if hum then hum.PlatformStand = false end
+        return
+    end
+    if not hrp or not hum then return end
+
+    -- buat body mover
+    if not (flyBV and flyBV.Parent) then
+        flyBV = Instance.new("BodyVelocity", hrp)
+        flyBV.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        flyBV.Velocity = Vector3.zero
+        flyBV.Name = "_FlyBV"
+    end
+    if not (flyBG and flyBG.Parent) then
+        flyBG = Instance.new("BodyGyro", hrp)
+        flyBG.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        flyBG.P = 1e4
+        flyBG.Name = "_FlyBG"
+    end
+
+    hum.PlatformStand = true
+
+    local cf    = cam.CFrame
+    local spd   = S.fly_spd
+    local md    = hum.MoveDirection  -- ini dari joystick native, sudah world space
+
+    local dir = Vector3.zero
+
+    -- ── joystick input ──────────────────────────────────────
+    -- MoveDirection dari roblox sudah dalam world space flat (Y=0)
+    -- tapi kita mau arahnya ikutin camera horizontal plane
+    -- jadi ambil komponen X dan Z dari MoveDirection,
+    -- project ke camera right dan look (Y=0)
+    if md.Magnitude > 0.05 then
+        -- camera forward & right, flatten Y
+        local camLook  = Vector3.new(cf.LookVector.X,  0, cf.LookVector.Z)
+        local camRight = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
+
+        -- magnitude joystick di masing-masing axis
+        -- md sudah relative to camera di roblox mobile, tinggal pake
+        local fwd  = -md.Z   -- Z negatif = maju
+        local rgt  =  md.X   -- X positif = kanan
+
+        if camLook.Magnitude  > 0 then dir += camLook.Unit  * fwd end
+        if camRight.Magnitude > 0 then dir += camRight.Unit * rgt end
+    end
+
+    -- ── naik: jump button ───────────────────────────────────
+    if jumping then
+        dir += Vector3.new(0, 1, 0)
+    end
+
+    -- ── turun: kamera hadap bawah + joystick maju ───────────
+    -- ini otomatis: saat cam.LookVector.Y negatif dan ada input maju,
+    -- komponen Y dari look akan menarik ke bawah
+    -- tapi kita flatten di atas, jadi kita perlu tambah Y dari look
+    -- hanya kalau joystick ada input
+    if md.Magnitude > 0.05 then
+        -- ambil komponen vertikal dari camera look
+        -- kamera hadap bawah → LookVector.Y negatif → turun
+        -- kamera hadap atas  → LookVector.Y positif → naik tambahan
+        local verticalPull = cf.LookVector.Y * (-md.Z)
+        dir += Vector3.new(0, verticalPull, 0)
+    end
+
+    -- normalize dan apply speed
+    flyBV.Velocity = dir.Magnitude > 0.01
+        and dir.Unit * spd
+         or Vector3.zero
+
+    flyBG.CFrame = cf
+end)
+
+-- ============================================================
+-- NOCLIP
+-- ============================================================
+RunService.Stepped:Connect(function()
+    if not S.noclip or not char then return end
+    for _, p in ipairs(char:GetDescendants()) do
+        if p:IsA("BasePart") then p.CanCollide = false end
+    end
+end)
+
+-- ============================================================
+-- INF JUMP
+-- ============================================================
+local function hookInfJump()
+    if not hum then return end
+    hum.StateChanged:Connect(function(_, new)
+        if S.infjump and new == Enum.HumanoidStateType.Landed then
+            task.wait(0.05)
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end)
+end
+hookInfJump()
+lp.CharacterAdded:Connect(function()
+    task.wait(0.4); refreshChar(); hookInfJump()
+end)
+
+-- ============================================================
+-- DONE
+-- ============================================================
+notify("⚡ Jaccks v5 loaded")
